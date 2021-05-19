@@ -79,6 +79,7 @@ export async function getPayer(): Promise<Account> {
  */
 export async function readAccountFromFile(filePath: string): Promise<Account> {
   const keypairString = await fs.readFile(filePath, {encoding: 'utf8'});
+  console.log(keypairString);
   const keypairBuffer = Buffer.from(JSON.parse(keypairString));
   return new Account(keypairBuffer);
 }

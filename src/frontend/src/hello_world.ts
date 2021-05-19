@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import {
-  Account,
+  Keypair,
   Connection,
   PublicKey,
   LAMPORTS_PER_SOL,
@@ -11,15 +11,10 @@ import {
   Transaction,
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
-import fs from 'mz/fs';
-import path from 'path';
 import * as borsh from 'borsh';
 
 import {
-  getPayer,
   getRpcUrl,
-  newAccountWithLamports,
-  readAccountFromFile,
 } from './utils';
 
 /**
@@ -30,7 +25,7 @@ let connection: Connection;
 /**
  * Connection to the network
  */
-let payerAccount: Account;
+let payerAccount: Keypair;
 
 /**
  * Hello world's program id
@@ -42,24 +37,7 @@ let programId: PublicKey;
  */
 let greetedPubkey: PublicKey;
 
-/**
- * Path to program files
- */
-const PROGRAM_PATH = path.resolve(__dirname, '../../dist/program');
-
-/**
- * Path to program shared object file which should be deployed on chain.
- * This file is created when running either:
- *   - `npm run build:program-c`
- *   - `npm run build:program-rust`
- */
-const PROGRAM_SO_PATH = path.join(PROGRAM_PATH, 'helloworld.so');
-
-/**
- * Path to the keypair of the deployed program.
- * This file is created when running `solana program deploy dist/program/helloworld.so`
- */
-const PROGRAM_KEYPAIR_PATH = path.join(PROGRAM_PATH, 'helloworld-keypair.json');
+let programAccount: Keypair;
 
 /**
  * The state of a greeting account managed by the hello world program
@@ -109,14 +87,6 @@ export async function establishPayer(): Promise<void> {
 
     // Calculate the cost of sending transactions
     fees += feeCalculator.lamportsPerSignature * 100; // wag
-
-    try {
-      // Get payer from cli config
-      payerAccount = await getPayer();
-    } catch (err) {
-      // Fund a new payer via airdrop
-      payerAccount = await newAccountWithLamports(connection, fees);
-    }
   }
 
   const lamports = await connection.getBalance(payerAccount.publicKey);
@@ -138,32 +108,39 @@ export async function establishPayer(): Promise<void> {
   );
 }
 
-/**
- * Check if the hello world BPF program has been deployed
- */
+export function populateProgramKeypair(keypair: Keypair): void {
+  programAccount = keypair;
+}
+
+export function populatePayer(keypair: Keypair): void {
+  payerAccount = keypair;
+}
+
+ /**
+  * Check if the hello world BPF program has been deployed
+  */
 export async function checkProgram(): Promise<void> {
-  // Read program id from keypair file
+   // Read program id from keypair file
   try {
-    const programAccount = await readAccountFromFile(PROGRAM_KEYPAIR_PATH);
     programId = programAccount.publicKey;
     console.log(programId.toBase58());
   } catch (err) {
     const errMsg = (err as Error).message;
     throw new Error(
-      `Failed to read program keypair at '${PROGRAM_KEYPAIR_PATH}' due to error: ${errMsg}. Program may need to be deployed with \`solana program deploy dist/program/helloworld.so\``,
+      `No program keypair`,
     );
   }
 
   // Check if the program has been deployed
   const programInfo = await connection.getAccountInfo(programId);
   if (programInfo === null) {
-    if (fs.existsSync(PROGRAM_SO_PATH)) {
-      throw new Error(
-        'Program needs to be deployed with `solana program deploy dist/program/helloworld.so`',
-      );
-    } else {
-      throw new Error('Program needs to be built and deployed');
-    }
+    // if (fs.existsSync(PROGRAM_SO_PATH)) {
+    //   throw new Error(
+    //     'Program needs to be deployed with `solana program deploy dist/program/helloworld.so`',
+    //   );
+    // } else {
+    //   throw new Error('Program needs to be built and deployed');
+    // }
   } else if (!programInfo.executable) {
     throw new Error(`Program is not executable`);
   }
